@@ -64,6 +64,15 @@ canvas#board {
   margin-top: 12px;
 }
 
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
 .btn {
   appearance: none;
   border: 1px solid var(--line);
@@ -115,4 +124,32 @@ canvas#board {
 .moves-list li {
   color: var(--text);
   line-height: 1.6;
+}
+
+.import-panel {
+  margin-top: 12px;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.import-header {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.import-textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #0f1420;
+  color: var(--text);
+  padding: 8px;
+}
+
+.import-actions {
+  margin-top: 8px;
 }

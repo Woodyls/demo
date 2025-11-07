@@ -10,12 +10,19 @@
   const statusEl = document.getElementById('status');
   const undoBtn = document.getElementById('undoBtn');
   const resetBtn = document.getElementById('resetBtn');
+  const showNumbersChk = document.getElementById('showNumbers');
+  const exportJsonBtn = document.getElementById('exportJsonBtn');
+  const exportTxtBtn = document.getElementById('exportTxtBtn');
+  const copyTxtBtn = document.getElementById('copyTxtBtn');
+  const importTextEl = document.getElementById('importText');
+  const importBtn = document.getElementById('importBtn');
 
   // 数据模型：0 空，1 黑，2 白
   let board = createBoard(GRID);
   let currentPlayer = 1; // 黑棋先手
   let moves = []; // 记录落子历史 [{r,c,player}]
   let gameOver = false;
+  let showMoveNumbers = false;
 
   const ctx = canvas.getContext('2d');
   let dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
@@ -154,15 +161,36 @@
     ctx.restore();
   }
 
+  function drawNumber(r, c, player, num) {
+    if (!showMoveNumbers || !num) return;
+    const cx = PADDING + (c + 0.5) * cell;
+    const cy = PADDING + (r + 0.5) * cell;
+    ctx.save();
+    ctx.fillStyle = player === 1 ? '#fff' : '#333';
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(num), cx, cy);
+    ctx.restore();
+  }
+
   function drawStones() {
     // 最后一手位置
     const last = moves[moves.length - 1];
+    // 着手序号映射
+    const numMap = new Map();
+    for (let i = 0; i < moves.length; i++) {
+      const m = moves[i];
+      numMap.set(`${m.r},${m.c}`, i + 1);
+    }
     for (let r = 0; r < GRID; r++) {
       for (let c = 0; c < GRID; c++) {
         const v = board[r][c];
         if (v !== 0) {
           const isLast = !!(last && last.r === r && last.c === c);
           drawStone(r, c, v, isLast);
+          const num = numMap.get(`${r},${c}`);
+          drawNumber(r, c, v, num);
         }
       }
     }
@@ -313,6 +341,116 @@
       .join('');
   }
 
+  function toLabelRC(r, c) {
+    const col = String.fromCharCode('A'.charCodeAt(0) + c);
+    const row = (r + 1).toString();
+    return col + row;
+  }
+
+  function fromLabel(label) {
+    const s = label.trim().toUpperCase();
+    if (!/^[A-O](?:1[0-5]|[1-9])$/.test(s)) return null;
+    const c = s.charCodeAt(0) - 'A'.charCodeAt(0);
+    const r = parseInt(s.slice(1), 10) - 1;
+    return { r, c };
+  }
+
+  function serializeMovesJSON() {
+    return JSON.stringify({ grid: GRID, moves }, null, 2);
+  }
+
+  function serializeMovesTXT() {
+    return moves.map((m) => `${m.player === 1 ? '黑' : '白'} ${toLabelRC(m.r, m.c)}`).join('\n');
+  }
+
+  function downloadText(filename, text) {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }
+
+  async function copyTextToClipboard(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        updateStatus('棋谱已复制到剪贴板');
+        return;
+      }
+    } catch (_) {}
+    // 兼容回退
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    updateStatus('棋谱已复制（兼容模式）');
+  }
+
+  function importFromText(text) {
+    text = (text || '').trim();
+    if (!text) return;
+    // 优先尝试 JSON
+    try {
+      const obj = JSON.parse(text);
+      if (obj && Array.isArray(obj.moves) && typeof obj.grid === 'number') {
+        applyImportedMoves(obj.moves);
+        return;
+      }
+    } catch (_) {}
+    // TXT 行解析：支持“黑/白 A1”或“B/W A1”
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const parsed = [];
+    for (const line of lines) {
+      const parts = line.split(/\s+/);
+      if (parts.length === 0) continue;
+      let playerToken = parts[0];
+      let coordToken = parts[parts.length - 1];
+      const rc = fromLabel(coordToken);
+      if (!rc) continue;
+      let player = 0;
+      const pt = playerToken.toUpperCase();
+      if (pt === '黑' || pt === 'B' || pt === 'BLACK') player = 1;
+      else if (pt === '白' || pt === 'W' || pt === 'WHITE') player = 2;
+      if (player === 0) {
+        // 未给出玩家则按顺序推断
+        player = (parsed.length % 2 === 0) ? 1 : 2;
+      }
+      parsed.push({ r: rc.r, c: rc.c, player });
+    }
+    applyImportedMoves(parsed);
+  }
+
+  function applyImportedMoves(list) {
+    reset();
+    // 逐手应用，忽略非法重复点
+    for (const m of list) {
+      if (!inBounds(m.r, m.c)) continue;
+      if (board[m.r][m.c] !== 0) continue;
+      board[m.r][m.c] = m.player === 2 ? 2 : 1;
+      moves.push({ r: m.r, c: m.c, player: board[m.r][m.c] });
+    }
+    // 根据最后一手判断状态
+    const last = moves[moves.length - 1];
+    if (last && checkWin(last.r, last.c, last.player)) {
+      gameOver = true;
+      updateStatus((last.player === 1 ? '黑棋' : '白棋') + '胜！');
+    } else if (moves.length >= GRID * GRID) {
+      gameOver = true;
+      updateStatus('平局');
+    } else {
+      currentPlayer = moves.length % 2 === 0 ? 1 : 2;
+      updateStatus((currentPlayer === 1 ? '黑棋' : '白棋') + '走');
+    }
+    drawAll();
+    updateMovesUI();
+  }
+
   function handleMouseMove(evt) {
     const rect = canvas.getBoundingClientRect();
     const x = (evt.clientX - rect.left);
@@ -381,6 +519,25 @@
   canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
   undoBtn.addEventListener('click', undo);
   resetBtn.addEventListener('click', reset);
+  showNumbersChk && showNumbersChk.addEventListener('change', (e) => {
+    showMoveNumbers = !!e.target.checked;
+    drawAll();
+  });
+  exportJsonBtn && exportJsonBtn.addEventListener('click', () => {
+    const txt = serializeMovesJSON();
+    downloadText('gomoku.json', txt);
+  });
+  exportTxtBtn && exportTxtBtn.addEventListener('click', () => {
+    const txt = serializeMovesTXT();
+    downloadText('gomoku.txt', txt);
+  });
+  copyTxtBtn && copyTxtBtn.addEventListener('click', async () => {
+    const txt = serializeMovesTXT();
+    await copyTextToClipboard(txt);
+  });
+  importBtn && importBtn.addEventListener('click', () => {
+    importFromText(importTextEl.value);
+  });
   window.addEventListener('resize', setupCanvas);
 
   // 初始渲染
