@@ -2,7 +2,7 @@
 
 (() => {
   const GRID = 15; // 15x15
-  const PADDING = 20; // 棋盘边距
+  const PADDING = 28; // 棋盘边距（增大以容纳坐标标注）
   const LINE_COLOR = '#6b5b3e';
   const STAR_RADIUS = 3; // 天元和星位大小
 
@@ -21,6 +21,8 @@
   let dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
   let displaySize = 0; // CSS显示尺寸（像素）
   let cell = 0;        // 每格像素大小（绘制用，考虑dpr前）
+  let hoverCell = null; // {r,c} 鼠标悬停的格子
+  const movesEl = document.getElementById('moves');
 
   function createBoard(n) {
     return Array.from({ length: n }, () => Array(n).fill(0));
@@ -91,6 +93,29 @@
       ctx.fill();
     });
     ctx.restore();
+
+    // 坐标标注（列 A–O，行 1–15）
+    ctx.save();
+    ctx.fillStyle = '#3a321f';
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // 列标注顶部
+    for (let c = 0; c < GRID; c++) {
+      const x = PADDING + (c + 0.5) * cell;
+      const label = String.fromCharCode('A'.charCodeAt(0) + c);
+      ctx.fillText(label, x, PADDING - 12);
+      // 底部
+      ctx.fillText(label, x, PADDING + GRID * cell + 12);
+    }
+    // 行标注左右
+    for (let r = 0; r < GRID; r++) {
+      const y = PADDING + (r + 0.5) * cell;
+      const label = (r + 1).toString();
+      ctx.fillText(label, PADDING - 12, y);
+      ctx.fillText(label, PADDING + GRID * cell + 12, y);
+    }
+    ctx.restore();
   }
 
   function drawStone(r, c, player, isLast) {
@@ -143,10 +168,29 @@
     }
   }
 
+  function drawGhost() {
+    if (gameOver) return;
+    if (!hoverCell) return;
+    const { r, c } = hoverCell;
+    if (!inBounds(r, c)) return;
+    if (board[r][c] !== 0) return;
+    const cx = PADDING + (c + 0.5) * cell;
+    const cy = PADDING + (r + 0.5) * cell;
+    const radius = Math.min(cell * 0.45, 16);
+    const color = currentPlayer === 1 ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.5)';
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawAll() {
     clear();
     drawBoard();
     drawStones();
+    drawGhost();
   }
 
   function insideBoard(x, y) {
@@ -179,6 +223,16 @@
       gameOver = true;
       updateStatus((currentPlayer === 1 ? '黑棋' : '白棋') + '胜！');
       drawAll();
+      updateMovesUI();
+      return;
+    }
+
+    // 平局判定（棋盘已满）
+    if (moves.length >= GRID * GRID) {
+      gameOver = true;
+      updateStatus('平局');
+      drawAll();
+      updateMovesUI();
       return;
     }
 
@@ -186,6 +240,7 @@
     currentPlayer = 3 - currentPlayer; // 1->2, 2->1
     updateStatus((currentPlayer === 1 ? '黑棋' : '白棋') + '走');
     drawAll();
+    updateMovesUI();
   }
 
   function inBounds(r, c) {
@@ -229,6 +284,7 @@
     currentPlayer = last.player; // 回到上一手的玩家
     updateStatus((currentPlayer === 1 ? '黑棋' : '白棋') + '走');
     drawAll();
+    updateMovesUI();
   }
 
   function reset() {
@@ -238,10 +294,91 @@
     gameOver = false;
     updateStatus('黑棋先手');
     drawAll();
+    updateMovesUI();
+  }
+
+  function updateMovesUI() {
+    if (!movesEl) return;
+    const max = 20;
+    const start = Math.max(0, moves.length - max);
+    const slice = moves.slice(start);
+    // 生成坐标标识（列 A–O, 行 1–15）
+    const toLabel = ({ r, c }) => {
+      const col = String.fromCharCode('A'.charCodeAt(0) + c);
+      const row = (r + 1).toString();
+      return col + row;
+    };
+    movesEl.innerHTML = slice
+      .map((m) => `<li>${m.player === 1 ? '黑' : '白'} ${toLabel(m)}</li>`) 
+      .join('');
+  }
+
+  function handleMouseMove(evt) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (evt.clientX - rect.left);
+    const y = (evt.clientY - rect.top);
+    if (!insideBoard(x, y)) {
+      if (hoverCell) {
+        hoverCell = null;
+        drawAll();
+      }
+      return;
+    }
+    const c = Math.floor((x - PADDING) / cell);
+    const r = Math.floor((y - PADDING) / cell);
+    const next = { r, c };
+    if (!hoverCell || hoverCell.r !== next.r || hoverCell.c !== next.c) {
+      hoverCell = next;
+      drawAll();
+    }
+  }
+
+  function handleMouseLeave() {
+    if (hoverCell) {
+      hoverCell = null;
+      drawAll();
+    }
+  }
+
+  function handleTouchStart(evt) {
+    if (gameOver) return;
+    const t = evt.touches[0];
+    if (!t) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (t.clientX - rect.left);
+    const y = (t.clientY - rect.top);
+    if (!insideBoard(x, y)) return;
+    const c = Math.floor((x - PADDING) / cell);
+    const r = Math.floor((y - PADDING) / cell);
+    if (board[r][c] !== 0) return;
+    // 复用点击逻辑
+    board[r][c] = currentPlayer;
+    moves.push({ r, c, player: currentPlayer });
+    if (checkWin(r, c, currentPlayer)) {
+      gameOver = true;
+      updateStatus((currentPlayer === 1 ? '黑棋' : '白棋') + '胜！');
+      drawAll();
+      updateMovesUI();
+      return;
+    }
+    if (moves.length >= GRID * GRID) {
+      gameOver = true;
+      updateStatus('平局');
+      drawAll();
+      updateMovesUI();
+      return;
+    }
+    currentPlayer = 3 - currentPlayer;
+    updateStatus((currentPlayer === 1 ? '黑棋' : '白棋') + '走');
+    drawAll();
+    updateMovesUI();
   }
 
   // 事件绑定
   canvas.addEventListener('click', handleClick);
+  canvas.addEventListener('mousemove', handleMouseMove);
+  canvas.addEventListener('mouseleave', handleMouseLeave);
+  canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
   undoBtn.addEventListener('click', undo);
   resetBtn.addEventListener('click', reset);
   window.addEventListener('resize', setupCanvas);
