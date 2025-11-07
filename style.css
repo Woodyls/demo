@@ -8,6 +8,16 @@
   --board: #d3b37a;
 }
 
+.theme-light {
+  --bg: #f6f7fb;
+  --panel: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --line: #e5e7eb;
+  --board: #e4c79e;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -42,6 +52,9 @@ body {
 .status {
   color: var(--muted);
 }
+.status.error {
+  color: #ef4444;
+}
 
 .board-wrap {
   background: var(--panel);
@@ -62,6 +75,24 @@ canvas#board {
   display: flex;
   gap: 10px;
   margin-top: 12px;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+.toggle select {
+  appearance: none;
+  background: #1a2030;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
 }
 
 .btn {
@@ -115,4 +146,32 @@ canvas#board {
 .moves-list li {
   color: var(--text);
   line-height: 1.6;
+}
+
+.import-panel {
+  margin-top: 12px;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.import-header {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.import-textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #0f1420;
+  color: var(--text);
+  padding: 8px;
+}
+
+.import-actions {
+  margin-top: 8px;
 }

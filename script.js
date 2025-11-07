@@ -1,7 +1,7 @@
 // 简易五子棋（15x15）实现：棋盘绘制、落子交互、胜负判定、悔棋与重开
 
 (() => {
-  const GRID = 15; // 15x15
+  let GRID = 15; // 可变路数：13/15/19
   const PADDING = 28; // 棋盘边距（增大以容纳坐标标注）
   const LINE_COLOR = '#6b5b3e';
   const STAR_RADIUS = 3; // 天元和星位大小
@@ -10,12 +10,21 @@
   const statusEl = document.getElementById('status');
   const undoBtn = document.getElementById('undoBtn');
   const resetBtn = document.getElementById('resetBtn');
+  const showNumbersChk = document.getElementById('showNumbers');
+  const exportJsonBtn = document.getElementById('exportJsonBtn');
+  const exportTxtBtn = document.getElementById('exportTxtBtn');
+  const copyTxtBtn = document.getElementById('copyTxtBtn');
+  const importTextEl = document.getElementById('importText');
+  const importBtn = document.getElementById('importBtn');
+  const themeToggle = document.getElementById('themeToggle');
+  const gridSelect = document.getElementById('gridSelect');
 
   // 数据模型：0 空，1 黑，2 白
   let board = createBoard(GRID);
   let currentPlayer = 1; // 黑棋先手
   let moves = []; // 记录落子历史 [{r,c,player}]
   let gameOver = false;
+  let showMoveNumbers = false;
 
   const ctx = canvas.getContext('2d');
   let dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
@@ -30,6 +39,13 @@
 
   function updateStatus(text) {
     statusEl.textContent = text;
+    statusEl.classList.remove('error');
+  }
+
+  function setStatus(text, type = 'info') {
+    statusEl.textContent = text;
+    statusEl.classList.remove('error');
+    if (type === 'error') statusEl.classList.add('error');
   }
 
   function setupCanvas() {
@@ -80,10 +96,7 @@
     }
 
     // 天元与星位（按15路棋盘惯例）
-    const stars = [
-      [3, 3], [3, 11], [11, 3], [11, 11], // 四角星
-      [7, 7], // 天元
-    ];
+    const stars = getStarPoints(GRID);
     ctx.fillStyle = '#4b3b1e';
     stars.forEach(([r, c]) => {
       const cx = PADDING + (c + 0.5) * cell;
@@ -116,6 +129,13 @@
       ctx.fillText(label, PADDING + GRID * cell + 12, y);
     }
     ctx.restore();
+  }
+
+  function getStarPoints(n) {
+    // 返回（r,c）星位坐标，支持 13/15/19
+    if (n === 19) return [[3,3],[3,15],[15,3],[15,15],[9,9]];
+    if (n === 13) return [[3,3],[3,9],[9,3],[9,9],[6,6]];
+    return [[3,3],[3,11],[11,3],[11,11],[7,7]]; // 15 默认
   }
 
   function drawStone(r, c, player, isLast) {
@@ -154,15 +174,36 @@
     ctx.restore();
   }
 
+  function drawNumber(r, c, player, num) {
+    if (!showMoveNumbers || !num) return;
+    const cx = PADDING + (c + 0.5) * cell;
+    const cy = PADDING + (r + 0.5) * cell;
+    ctx.save();
+    ctx.fillStyle = player === 1 ? '#fff' : '#333';
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(num), cx, cy);
+    ctx.restore();
+  }
+
   function drawStones() {
     // 最后一手位置
     const last = moves[moves.length - 1];
+    // 着手序号映射
+    const numMap = new Map();
+    for (let i = 0; i < moves.length; i++) {
+      const m = moves[i];
+      numMap.set(`${m.r},${m.c}`, i + 1);
+    }
     for (let r = 0; r < GRID; r++) {
       for (let c = 0; c < GRID; c++) {
         const v = board[r][c];
         if (v !== 0) {
           const isLast = !!(last && last.r === r && last.c === c);
           drawStone(r, c, v, isLast);
+          const num = numMap.get(`${r},${c}`);
+          drawNumber(r, c, v, num);
         }
       }
     }
@@ -313,6 +354,176 @@
       .join('');
   }
 
+  function toLabelRC(r, c) {
+    const col = String.fromCharCode('A'.charCodeAt(0) + c);
+    const row = (r + 1).toString();
+    return col + row;
+  }
+
+  function fromLabel(label) {
+    const s = label.trim().toUpperCase();
+    if (!/^[A-O](?:1[0-5]|[1-9])$/.test(s)) return null;
+    const c = s.charCodeAt(0) - 'A'.charCodeAt(0);
+    const r = parseInt(s.slice(1), 10) - 1;
+    return { r, c };
+  }
+
+  function serializeMovesJSON() {
+    return JSON.stringify({ grid: GRID, moves }, null, 2);
+  }
+
+  function serializeMovesTXT() {
+    return moves.map((m) => `${m.player === 1 ? '黑' : '白'} ${toLabelRC(m.r, m.c)}`).join('\n');
+  }
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function buildFilename(ext) {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const HH = pad(d.getHours());
+    const MM = pad(d.getMinutes());
+    const SS = pad(d.getSeconds());
+    return `gomoku-${GRID}-${yyyy}${mm}${dd}-${HH}${MM}${SS}.${ext}`;
+  }
+
+  function downloadText(filename, text) {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }
+
+  async function copyTextToClipboard(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        updateStatus('棋谱已复制到剪贴板');
+        return;
+      }
+    } catch (_) {}
+    // 兼容回退
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    updateStatus('棋谱已复制（兼容模式）');
+  }
+
+  function importFromText(text) {
+    text = (text || '').trim();
+    if (!text) { setStatus('导入内容为空', 'error'); return; }
+    // 优先尝试 JSON
+    try {
+      const obj = JSON.parse(text);
+      if (obj && Array.isArray(obj.moves) && typeof obj.grid === 'number') {
+        const g = obj.grid;
+        if (![13, 15, 19].includes(g)) {
+          setStatus('导入失败：不支持的路数（仅支持 13/15/19）', 'error');
+          return;
+        }
+        const errors = validateMoves(obj.moves, g);
+        if (errors.length) {
+          setStatus(`导入失败：${errors[0]}（共 ${errors.length} 处错误）`, 'error');
+          return;
+        }
+        GRID = g;
+        applyImportedMoves(obj.moves);
+        return;
+      }
+    } catch (_) {}
+    // TXT 行解析：支持“黑/白 A1”或“B/W A1”
+    const lines = text.split(/\r?\n/);
+    const parsed = [];
+    const errors = [];
+    const seen = new Set();
+    for (let idx = 0; idx < lines.length; idx++) {
+      const raw = lines[idx];
+      const line = raw.trim();
+      if (!line) continue;
+      const parts = line.split(/\s+/);
+      if (parts.length === 0) continue;
+      let playerToken = parts[0];
+      let coordToken = parts[parts.length - 1];
+      const rc = fromLabel(coordToken);
+      if (!rc) { errors.push(`第 ${idx + 1} 行坐标格式错误：${coordToken}`); continue; }
+      if (!inBounds(rc.r, rc.c)) { errors.push(`第 ${idx + 1} 行坐标越界：${coordToken}`); continue; }
+      const key = `${rc.r},${rc.c}`;
+      if (seen.has(key)) { errors.push(`第 ${idx + 1} 行重复坐标：${coordToken}`); continue; }
+      seen.add(key);
+      let player = 0;
+      const pt = playerToken.toUpperCase();
+      if (pt === '黑' || pt === 'B' || pt === 'BLACK') player = 1;
+      else if (pt === '白' || pt === 'W' || pt === 'WHITE') player = 2;
+      if (player === 0) {
+        // 未给出玩家则按顺序推断
+        player = (parsed.length % 2 === 0) ? 1 : 2;
+      }
+      parsed.push({ r: rc.r, c: rc.c, player });
+    }
+    if (errors.length) {
+      setStatus(`导入失败：${errors[0]}（共 ${errors.length} 处错误）`, 'error');
+      return;
+    }
+    applyImportedMoves(parsed);
+  }
+
+  function validateMoves(list, grid) {
+    const errors = [];
+    const seen = new Set();
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (!inBoundsFor(m.r, m.c, grid)) {
+        errors.push(`第 ${i + 1} 手越界：${toLabelRC(m.r, m.c)}`);
+        continue;
+      }
+      const key = `${m.r},${m.c}`;
+      if (seen.has(key)) {
+        errors.push(`第 ${i + 1} 手重复坐标：${toLabelRC(m.r, m.c)}`);
+        continue;
+      }
+      seen.add(key);
+    }
+    return errors;
+  }
+
+  function inBoundsFor(r, c, grid) {
+    return r >= 0 && r < grid && c >= 0 && c < grid;
+  }
+
+  function applyImportedMoves(list) {
+    reset();
+    // 逐手应用，忽略非法重复点
+    for (const m of list) {
+      if (!inBounds(m.r, m.c)) continue;
+      if (board[m.r][m.c] !== 0) continue;
+      board[m.r][m.c] = m.player === 2 ? 2 : 1;
+      moves.push({ r: m.r, c: m.c, player: board[m.r][m.c] });
+    }
+    // 根据最后一手判断状态
+    const last = moves[moves.length - 1];
+    if (last && checkWin(last.r, last.c, last.player)) {
+      gameOver = true;
+      updateStatus((last.player === 1 ? '黑棋' : '白棋') + '胜！');
+    } else if (moves.length >= GRID * GRID) {
+      gameOver = true;
+      updateStatus('平局');
+    } else {
+      currentPlayer = moves.length % 2 === 0 ? 1 : 2;
+      updateStatus((currentPlayer === 1 ? '黑棋' : '白棋') + '走');
+    }
+    drawAll();
+    updateMovesUI();
+  }
+
   function handleMouseMove(evt) {
     const rect = canvas.getBoundingClientRect();
     const x = (evt.clientX - rect.left);
@@ -381,6 +592,37 @@
   canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
   undoBtn.addEventListener('click', undo);
   resetBtn.addEventListener('click', reset);
+  showNumbersChk && showNumbersChk.addEventListener('change', (e) => {
+    showMoveNumbers = !!e.target.checked;
+    drawAll();
+  });
+  exportJsonBtn && exportJsonBtn.addEventListener('click', () => {
+    const txt = serializeMovesJSON();
+    downloadText(buildFilename('json'), txt);
+  });
+  exportTxtBtn && exportTxtBtn.addEventListener('click', () => {
+    const txt = serializeMovesTXT();
+    downloadText(buildFilename('txt'), txt);
+  });
+  copyTxtBtn && copyTxtBtn.addEventListener('click', async () => {
+    const txt = serializeMovesTXT();
+    await copyTextToClipboard(txt);
+  });
+  importBtn && importBtn.addEventListener('click', () => {
+    importFromText(importTextEl.value);
+  });
+  themeToggle && themeToggle.addEventListener('change', (e) => {
+    const checked = !!e.target.checked;
+    document.documentElement.classList.toggle('theme-light', !checked);
+  });
+  gridSelect && gridSelect.addEventListener('change', (e) => {
+    const val = parseInt(e.target.value, 10);
+    if ([13,15,19].includes(val)) {
+      GRID = val;
+      reset();
+      setupCanvas();
+    }
+  });
   window.addEventListener('resize', setupCanvas);
 
   // 初始渲染

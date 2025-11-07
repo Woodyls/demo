@@ -18,10 +18,34 @@
     <footer class="controls">
       <button id="undoBtn" class="btn" title="撤销上一手">悔棋</button>
       <button id="resetBtn" class="btn btn-primary" title="重新开始对局">重新开始</button>
+      <label class="toggle" title="在棋子上显示着法序号">
+        <input type="checkbox" id="showNumbers" /> 显示手数
+      </label>
+      <button id="exportJsonBtn" class="btn" title="导出为 JSON 文件">导出JSON</button>
+      <button id="exportTxtBtn" class="btn" title="导出并下载 TXT 棋谱">下载TXT</button>
+      <button id="copyTxtBtn" class="btn" title="复制 TXT 棋谱到剪贴板">复制TXT</button>
+      <label class="toggle" title="切换主题">
+        <input type="checkbox" id="themeToggle" /> 深色主题
+      </label>
+      <label class="toggle" title="选择棋盘路数">
+        路数
+        <select id="gridSelect">
+          <option value="13">13</option>
+          <option value="15" selected>15</option>
+          <option value="19">19</option>
+        </select>
+      </label>
     </footer>
     <section class="moves-panel" aria-label="棋谱">
       <div class="moves-header">棋谱（最近 20 手）</div>
       <ol id="moves" class="moves-list"></ol>
+    </section>
+    <section class="import-panel" aria-label="导入棋谱">
+      <div class="import-header">导入棋谱（支持 JSON 或 TXT，每行如：黑 A1 / 白 H8）</div>
+      <textarea id="importText" class="import-textarea" rows="4" placeholder='示例 JSON：{"grid":15,"moves":[{"r":7,"c":7,"player":1}]}'></textarea>
+      <div class="import-actions">
+        <button id="importBtn" class="btn btn-primary">导入棋谱</button>
+      </div>
     </section>
   </div>
   <script src="script.js"></script>
