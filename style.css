@@ -52,6 +52,9 @@ body {
 .status {
   color: var(--muted);
 }
+.status.error {
+  color: #ef4444;
+}
 
 .board-wrap {
   background: var(--panel);

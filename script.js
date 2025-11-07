@@ -39,6 +39,13 @@
 
   function updateStatus(text) {
     statusEl.textContent = text;
+    statusEl.classList.remove('error');
+  }
+
+  function setStatus(text, type = 'info') {
+    statusEl.textContent = text;
+    statusEl.classList.remove('error');
+    if (type === 'error') statusEl.classList.add('error');
   }
 
   function setupCanvas() {
@@ -369,6 +376,19 @@
     return moves.map((m) => `${m.player === 1 ? '黑' : '白'} ${toLabelRC(m.r, m.c)}`).join('\n');
   }
 
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function buildFilename(ext) {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const HH = pad(d.getHours());
+    const MM = pad(d.getMinutes());
+    const SS = pad(d.getSeconds());
+    return `gomoku-${GRID}-${yyyy}${mm}${dd}-${HH}${MM}${SS}.${ext}`;
+  }
+
   function downloadText(filename, text) {
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
@@ -400,25 +420,45 @@
 
   function importFromText(text) {
     text = (text || '').trim();
-    if (!text) return;
+    if (!text) { setStatus('导入内容为空', 'error'); return; }
     // 优先尝试 JSON
     try {
       const obj = JSON.parse(text);
       if (obj && Array.isArray(obj.moves) && typeof obj.grid === 'number') {
+        const g = obj.grid;
+        if (![13, 15, 19].includes(g)) {
+          setStatus('导入失败：不支持的路数（仅支持 13/15/19）', 'error');
+          return;
+        }
+        const errors = validateMoves(obj.moves, g);
+        if (errors.length) {
+          setStatus(`导入失败：${errors[0]}（共 ${errors.length} 处错误）`, 'error');
+          return;
+        }
+        GRID = g;
         applyImportedMoves(obj.moves);
         return;
       }
     } catch (_) {}
     // TXT 行解析：支持“黑/白 A1”或“B/W A1”
-    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const lines = text.split(/\r?\n/);
     const parsed = [];
-    for (const line of lines) {
+    const errors = [];
+    const seen = new Set();
+    for (let idx = 0; idx < lines.length; idx++) {
+      const raw = lines[idx];
+      const line = raw.trim();
+      if (!line) continue;
       const parts = line.split(/\s+/);
       if (parts.length === 0) continue;
       let playerToken = parts[0];
       let coordToken = parts[parts.length - 1];
       const rc = fromLabel(coordToken);
-      if (!rc) continue;
+      if (!rc) { errors.push(`第 ${idx + 1} 行坐标格式错误：${coordToken}`); continue; }
+      if (!inBounds(rc.r, rc.c)) { errors.push(`第 ${idx + 1} 行坐标越界：${coordToken}`); continue; }
+      const key = `${rc.r},${rc.c}`;
+      if (seen.has(key)) { errors.push(`第 ${idx + 1} 行重复坐标：${coordToken}`); continue; }
+      seen.add(key);
       let player = 0;
       const pt = playerToken.toUpperCase();
       if (pt === '黑' || pt === 'B' || pt === 'BLACK') player = 1;
@@ -429,7 +469,34 @@
       }
       parsed.push({ r: rc.r, c: rc.c, player });
     }
+    if (errors.length) {
+      setStatus(`导入失败：${errors[0]}（共 ${errors.length} 处错误）`, 'error');
+      return;
+    }
     applyImportedMoves(parsed);
+  }
+
+  function validateMoves(list, grid) {
+    const errors = [];
+    const seen = new Set();
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (!inBoundsFor(m.r, m.c, grid)) {
+        errors.push(`第 ${i + 1} 手越界：${toLabelRC(m.r, m.c)}`);
+        continue;
+      }
+      const key = `${m.r},${m.c}`;
+      if (seen.has(key)) {
+        errors.push(`第 ${i + 1} 手重复坐标：${toLabelRC(m.r, m.c)}`);
+        continue;
+      }
+      seen.add(key);
+    }
+    return errors;
+  }
+
+  function inBoundsFor(r, c, grid) {
+    return r >= 0 && r < grid && c >= 0 && c < grid;
   }
 
   function applyImportedMoves(list) {
@@ -531,11 +598,11 @@
   });
   exportJsonBtn && exportJsonBtn.addEventListener('click', () => {
     const txt = serializeMovesJSON();
-    downloadText('gomoku.json', txt);
+    downloadText(buildFilename('json'), txt);
   });
   exportTxtBtn && exportTxtBtn.addEventListener('click', () => {
     const txt = serializeMovesTXT();
-    downloadText('gomoku.txt', txt);
+    downloadText(buildFilename('txt'), txt);
   });
   copyTxtBtn && copyTxtBtn.addEventListener('click', async () => {
     const txt = serializeMovesTXT();
