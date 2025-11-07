@@ -8,6 +8,16 @@
   --board: #d3b37a;
 }
 
+.theme-light {
+  --bg: #f6f7fb;
+  --panel: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --line: #e5e7eb;
+  --board: #e4c79e;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -71,6 +81,15 @@ canvas#board {
   padding: 6px 10px;
   border: 1px dashed var(--line);
   border-radius: 8px;
+}
+
+.toggle select {
+  appearance: none;
+  background: #1a2030;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
 }
 
 .btn {

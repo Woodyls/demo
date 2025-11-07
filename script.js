@@ -1,7 +1,7 @@
 // 简易五子棋（15x15）实现：棋盘绘制、落子交互、胜负判定、悔棋与重开
 
 (() => {
-  const GRID = 15; // 15x15
+  let GRID = 15; // 可变路数：13/15/19
   const PADDING = 28; // 棋盘边距（增大以容纳坐标标注）
   const LINE_COLOR = '#6b5b3e';
   const STAR_RADIUS = 3; // 天元和星位大小
@@ -16,6 +16,8 @@
   const copyTxtBtn = document.getElementById('copyTxtBtn');
   const importTextEl = document.getElementById('importText');
   const importBtn = document.getElementById('importBtn');
+  const themeToggle = document.getElementById('themeToggle');
+  const gridSelect = document.getElementById('gridSelect');
 
   // 数据模型：0 空，1 黑，2 白
   let board = createBoard(GRID);
@@ -87,10 +89,7 @@
     }
 
     // 天元与星位（按15路棋盘惯例）
-    const stars = [
-      [3, 3], [3, 11], [11, 3], [11, 11], // 四角星
-      [7, 7], // 天元
-    ];
+    const stars = getStarPoints(GRID);
     ctx.fillStyle = '#4b3b1e';
     stars.forEach(([r, c]) => {
       const cx = PADDING + (c + 0.5) * cell;
@@ -123,6 +122,13 @@
       ctx.fillText(label, PADDING + GRID * cell + 12, y);
     }
     ctx.restore();
+  }
+
+  function getStarPoints(n) {
+    // 返回（r,c）星位坐标，支持 13/15/19
+    if (n === 19) return [[3,3],[3,15],[15,3],[15,15],[9,9]];
+    if (n === 13) return [[3,3],[3,9],[9,3],[9,9],[6,6]];
+    return [[3,3],[3,11],[11,3],[11,11],[7,7]]; // 15 默认
   }
 
   function drawStone(r, c, player, isLast) {
@@ -537,6 +543,18 @@
   });
   importBtn && importBtn.addEventListener('click', () => {
     importFromText(importTextEl.value);
+  });
+  themeToggle && themeToggle.addEventListener('change', (e) => {
+    const checked = !!e.target.checked;
+    document.documentElement.classList.toggle('theme-light', !checked);
+  });
+  gridSelect && gridSelect.addEventListener('change', (e) => {
+    const val = parseInt(e.target.value, 10);
+    if ([13,15,19].includes(val)) {
+      GRID = val;
+      reset();
+      setupCanvas();
+    }
   });
   window.addEventListener('resize', setupCanvas);
 
