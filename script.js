@@ -20,6 +20,9 @@
   const gridSelect = document.getElementById('gridSelect');
   const soundToggle = document.getElementById('soundToggle');
   const arrowToggle = document.getElementById('arrowToggle');
+  // 开关持久化键名
+  const SOUND_KEY = 'gomoku:soundEnabled';
+  const ARROW_KEY = 'gomoku:arrowEnabled';
 
   // 数据模型：0 空，1 黑，2 白
   let board = createBoard(GRID);
@@ -29,6 +32,22 @@
   let showMoveNumbers = false;
   let soundEnabled = true;
   let arrowEnabled = true;
+  // 读取并应用偏好
+  function loadPreferences() {
+    try {
+      const se = localStorage.getItem(SOUND_KEY);
+      if (se !== null) {
+        soundEnabled = se === 'true';
+        if (soundToggle) soundToggle.checked = soundEnabled;
+      }
+      const ae = localStorage.getItem(ARROW_KEY);
+      if (ae !== null) {
+        arrowEnabled = ae === 'true';
+        if (arrowToggle) arrowToggle.checked = arrowEnabled;
+      }
+    } catch (_) {}
+  }
+  loadPreferences();
   // 简易音效：使用 Web Audio API 生成短促提示音
   let audioCtx = null;
   function ensureAudio() {
@@ -696,9 +715,11 @@
   });
   soundToggle && soundToggle.addEventListener('change', (e) => {
     soundEnabled = !!e.target.checked;
+    try { localStorage.setItem(SOUND_KEY, String(soundEnabled)); } catch (_) {}
   });
   arrowToggle && arrowToggle.addEventListener('change', (e) => {
     arrowEnabled = !!e.target.checked;
+    try { localStorage.setItem(ARROW_KEY, String(arrowEnabled)); } catch (_) {}
     drawAll();
   });
   themeToggle && themeToggle.addEventListener('change', (e) => {
