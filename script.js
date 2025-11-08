@@ -26,6 +26,7 @@
   const SHOW_NUM_KEY = 'gomoku:showNumbers';
   const THEME_KEY = 'gomoku:darkTheme';
   const GRID_KEY = 'gomoku:grid';
+  const IMPORT_TEXT_KEY = 'gomoku:importText';
 
   // 数据模型：0 空，1 黑，2 白
   let board = createBoard(GRID);
@@ -78,6 +79,17 @@
         const dark = th === 'true';
         if (themeToggle) themeToggle.checked = dark;
         document.documentElement.classList.toggle('theme-light', !dark);
+      } else {
+        // 若无用户偏好，默认跟随系统主题
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (themeToggle) themeToggle.checked = !!prefersDark;
+        document.documentElement.classList.toggle('theme-light', !prefersDark);
+      }
+
+      // 导入文本框内容（便于断点续传）
+      const it = localStorage.getItem(IMPORT_TEXT_KEY);
+      if (it !== null && importTextEl) {
+        importTextEl.value = it;
       }
     } catch (_) {}
   }
@@ -748,6 +760,10 @@
   importBtn && importBtn.addEventListener('click', () => {
     importFromText(importTextEl.value);
   });
+  // 导入文本变化时持久化保存
+  importTextEl && importTextEl.addEventListener('input', (e) => {
+    try { localStorage.setItem(IMPORT_TEXT_KEY, e.target.value || ''); } catch (_) {}
+  });
   soundToggle && soundToggle.addEventListener('change', (e) => {
     soundEnabled = !!e.target.checked;
     try { localStorage.setItem(SOUND_KEY, String(soundEnabled)); } catch (_) {}
@@ -771,7 +787,15 @@
       try { localStorage.setItem(GRID_KEY, String(val)); } catch (_) {}
     }
   });
-  window.addEventListener('resize', setupCanvas);
+  // 窗口缩放防抖，减少频繁重绘抖动
+  let _resizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (_resizeTimer) clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => {
+      setupCanvas();
+      _resizeTimer = null;
+    }, 120);
+  });
 
   // 初始渲染
   setupCanvas();
