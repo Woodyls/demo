@@ -18,6 +18,8 @@
   const importBtn = document.getElementById('importBtn');
   const themeToggle = document.getElementById('themeToggle');
   const gridSelect = document.getElementById('gridSelect');
+  const soundToggle = document.getElementById('soundToggle');
+  const arrowToggle = document.getElementById('arrowToggle');
 
   // 数据模型：0 空，1 黑，2 白
   let board = createBoard(GRID);
@@ -25,6 +27,8 @@
   let moves = []; // 记录落子历史 [{r,c,player}]
   let gameOver = false;
   let showMoveNumbers = false;
+  let soundEnabled = true;
+  let arrowEnabled = true;
   // 简易音效：使用 Web Audio API 生成短促提示音
   let audioCtx = null;
   function ensureAudio() {
@@ -36,6 +40,7 @@
   }
   function playPlaceSound() {
     try {
+      if (!soundEnabled) return;
       if (!ensureAudio()) return;
       const t0 = audioCtx.currentTime;
       const dur = 0.07;
@@ -239,7 +244,7 @@
   }
 
   function drawLastMoveArrow(last) {
-    if (!last) return;
+    if (!last || !arrowEnabled) return;
     const r = last.r, c = last.c;
     const cx = PADDING + (c + 0.5) * cell;
     const cy = PADDING + (r + 0.5) * cell;
@@ -688,6 +693,13 @@
   });
   importBtn && importBtn.addEventListener('click', () => {
     importFromText(importTextEl.value);
+  });
+  soundToggle && soundToggle.addEventListener('change', (e) => {
+    soundEnabled = !!e.target.checked;
+  });
+  arrowToggle && arrowToggle.addEventListener('change', (e) => {
+    arrowEnabled = !!e.target.checked;
+    drawAll();
   });
   themeToggle && themeToggle.addEventListener('change', (e) => {
     const checked = !!e.target.checked;
