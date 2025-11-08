@@ -18,6 +18,8 @@
   const importBtn = document.getElementById('importBtn');
   const themeToggle = document.getElementById('themeToggle');
   const gridSelect = document.getElementById('gridSelect');
+  const soundToggle = document.getElementById('soundToggle');
+  const arrowToggle = document.getElementById('arrowToggle');
 
   // 数据模型：0 空，1 黑，2 白
   let board = createBoard(GRID);
@@ -25,6 +27,36 @@
   let moves = []; // 记录落子历史 [{r,c,player}]
   let gameOver = false;
   let showMoveNumbers = false;
+  let soundEnabled = true;
+  let arrowEnabled = true;
+  // 简易音效：使用 Web Audio API 生成短促提示音
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      try { audioCtx = new AC(); } catch (_) { audioCtx = null; }
+    }
+    return !!audioCtx;
+  }
+  function playPlaceSound() {
+    try {
+      if (!soundEnabled) return;
+      if (!ensureAudio()) return;
+      const t0 = audioCtx.currentTime;
+      const dur = 0.07;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      // 不同阵营略有音高差异
+      osc.frequency.setValueAtTime(currentPlayer === 1 ? 520 : 640, t0);
+      gain.gain.setValueAtTime(0.0, t0);
+      gain.gain.linearRampToValueAtTime(0.22, t0 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur);
+    } catch (_) {}
+  }
 
   const ctx = canvas.getContext('2d');
   let dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
@@ -207,6 +239,53 @@
         }
       }
     }
+    // 为最后一手绘制箭头提示（在环形高亮之外，避免遮挡）
+    drawLastMoveArrow(last);
+  }
+
+  function drawLastMoveArrow(last) {
+    if (!last || !arrowEnabled) return;
+    const r = last.r, c = last.c;
+    const cx = PADDING + (c + 0.5) * cell;
+    const cy = PADDING + (r + 0.5) * cell;
+    const radius = Math.min(cell * 0.45, 16);
+    const shaft = Math.min(10, cell * 0.4);
+    const head = Math.min(6, cell * 0.3);
+    // 默认向上箭头，若靠近上边界则改向下
+    const upSpace = cy - (PADDING + radius + 4);
+    const downSpace = (PADDING + GRID * cell) - (cy + radius + 4);
+    const dir = upSpace >= shaft + head ? 'up' : (downSpace >= shaft + head ? 'down' : 'up');
+    ctx.save();
+    ctx.strokeStyle = '#e83e8c';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (dir === 'up') {
+      const x = cx;
+      const y0 = cy - radius - 4;
+      const y1 = y0 - shaft;
+      ctx.moveTo(x, y0);
+      ctx.lineTo(x, y1);
+      // 箭头三角
+      ctx.moveTo(x, y1);
+      ctx.lineTo(x - head, y1 + head);
+      ctx.moveTo(x, y1);
+      ctx.lineTo(x + head, y1 + head);
+    } else {
+      const x = cx;
+      const y0 = cy + radius + 4;
+      const y1 = y0 + shaft;
+      ctx.moveTo(x, y0);
+      ctx.lineTo(x, y1);
+      // 箭头三角
+      ctx.moveTo(x, y1);
+      ctx.lineTo(x - head, y1 - head);
+      ctx.moveTo(x, y1);
+      ctx.lineTo(x + head, y1 - head);
+    }
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawGhost() {
@@ -258,6 +337,8 @@
 
     board[r][c] = currentPlayer;
     moves.push({ r, c, player: currentPlayer });
+    // 落子音效
+    playPlaceSound();
 
     // 胜负判定
     if (checkWin(r, c, currentPlayer)) {
@@ -565,6 +646,8 @@
     // 复用点击逻辑
     board[r][c] = currentPlayer;
     moves.push({ r, c, player: currentPlayer });
+    // 落子音效
+    playPlaceSound();
     if (checkWin(r, c, currentPlayer)) {
       gameOver = true;
       updateStatus((currentPlayer === 1 ? '黑棋' : '白棋') + '胜！');
@@ -610,6 +693,13 @@
   });
   importBtn && importBtn.addEventListener('click', () => {
     importFromText(importTextEl.value);
+  });
+  soundToggle && soundToggle.addEventListener('change', (e) => {
+    soundEnabled = !!e.target.checked;
+  });
+  arrowToggle && arrowToggle.addEventListener('change', (e) => {
+    arrowEnabled = !!e.target.checked;
+    drawAll();
   });
   themeToggle && themeToggle.addEventListener('change', (e) => {
     const checked = !!e.target.checked;
