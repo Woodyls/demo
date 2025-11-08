@@ -23,6 +23,9 @@
   // 开关持久化键名
   const SOUND_KEY = 'gomoku:soundEnabled';
   const ARROW_KEY = 'gomoku:arrowEnabled';
+  const SHOW_NUM_KEY = 'gomoku:showNumbers';
+  const THEME_KEY = 'gomoku:darkTheme';
+  const GRID_KEY = 'gomoku:grid';
 
   // 数据模型：0 空，1 黑，2 白
   let board = createBoard(GRID);
@@ -35,6 +38,22 @@
   // 读取并应用偏好
   function loadPreferences() {
     try {
+      // 路数（棋盘大小）
+      const g = localStorage.getItem(GRID_KEY);
+      if (g !== null) {
+        const gv = parseInt(g, 10);
+        if ([13, 15, 19].includes(gv)) {
+          GRID = gv;
+          if (gridSelect) gridSelect.value = String(GRID);
+          // 初始化棋盘状态（首屏无棋谱，安全重置）
+          board = createBoard(GRID);
+          moves = [];
+          currentPlayer = 1;
+          gameOver = false;
+        }
+      }
+
+      // 音效与箭头
       const se = localStorage.getItem(SOUND_KEY);
       if (se !== null) {
         soundEnabled = se === 'true';
@@ -44,6 +63,21 @@
       if (ae !== null) {
         arrowEnabled = ae === 'true';
         if (arrowToggle) arrowToggle.checked = arrowEnabled;
+      }
+
+      // 显示手数
+      const sn = localStorage.getItem(SHOW_NUM_KEY);
+      if (sn !== null) {
+        showMoveNumbers = sn === 'true';
+        if (showNumbersChk) showNumbersChk.checked = showMoveNumbers;
+      }
+
+      // 主题（深色/浅色）
+      const th = localStorage.getItem(THEME_KEY);
+      if (th !== null) {
+        const dark = th === 'true';
+        if (themeToggle) themeToggle.checked = dark;
+        document.documentElement.classList.toggle('theme-light', !dark);
       }
     } catch (_) {}
   }
@@ -696,6 +730,7 @@
   resetBtn.addEventListener('click', reset);
   showNumbersChk && showNumbersChk.addEventListener('change', (e) => {
     showMoveNumbers = !!e.target.checked;
+    try { localStorage.setItem(SHOW_NUM_KEY, String(showMoveNumbers)); } catch (_) {}
     drawAll();
   });
   exportJsonBtn && exportJsonBtn.addEventListener('click', () => {
@@ -725,6 +760,7 @@
   themeToggle && themeToggle.addEventListener('change', (e) => {
     const checked = !!e.target.checked;
     document.documentElement.classList.toggle('theme-light', !checked);
+    try { localStorage.setItem(THEME_KEY, String(checked)); } catch (_) {}
   });
   gridSelect && gridSelect.addEventListener('change', (e) => {
     const val = parseInt(e.target.value, 10);
@@ -732,6 +768,7 @@
       GRID = val;
       reset();
       setupCanvas();
+      try { localStorage.setItem(GRID_KEY, String(val)); } catch (_) {}
     }
   });
   window.addEventListener('resize', setupCanvas);
